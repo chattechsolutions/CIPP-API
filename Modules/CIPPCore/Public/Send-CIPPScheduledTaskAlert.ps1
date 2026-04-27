@@ -92,7 +92,7 @@ function Send-CIPPScheduledTaskAlert {
 <td style="padding:0 6px 0 0;"><table cellpadding="0" cellspacing="0" border="0"><tr><td style="background-color:#0078d4;padding:6px 14px;"><a href="${BaseLink}&duration=7" style="color:#ffffff;font-size:12px;font-weight:600;text-decoration:none;white-space:nowrap;">7 Days</a></td></tr></table></td>
 <td style="padding:0 6px 0 0;"><table cellpadding="0" cellspacing="0" border="0"><tr><td style="background-color:#0078d4;padding:6px 14px;"><a href="${BaseLink}&duration=14" style="color:#ffffff;font-size:12px;font-weight:600;text-decoration:none;white-space:nowrap;">14 Days</a></td></tr></table></td>
 <td style="padding:0 6px 0 0;"><table cellpadding="0" cellspacing="0" border="0"><tr><td style="background-color:#ff9800;padding:6px 14px;"><a href="${BaseLink}&duration=30" style="color:#ffffff;font-size:12px;font-weight:600;text-decoration:none;white-space:nowrap;">30 Days</a></td></tr></table></td>
-<td style="padding:0;"><table cellpadding="0" cellspacing="0" border="0"><tr><td style="background-color:#d32f2f;padding:6px 14px;"><a href="${BaseLink}&duration=-1" style="color:#ffffff;font-size:12px;font-weight:600;text-decoration:none;white-space:nowrap;">Forever</a></td></tr></table></td>
+<td style="padding:0;"><table cellpadding="0" cellspacing="0" border="0"><tr><td style="background-color:#d32f2f;padding:6px 14px;"><a href="${BaseLink}&duration=90" style="color:#ffffff;font-size:12px;font-weight:600;text-decoration:none;white-space:nowrap;">90 Days</a></td></tr></table></td>
 </tr></table>
 </td></tr>
 </table>
@@ -121,8 +121,12 @@ function Send-CIPPScheduledTaskAlert {
             $HTML += "<div style='background-color: transparent; border-left: 4px solid #007bff; padding: 15px; margin: 15px 0;'><h4 style='margin-top: 0; color: #007bff;'>Alert Information</h4><p style='margin-bottom: 0;'>$AlertComment</p></div>"
         }
 
-        # Build title
-        $title = "$TaskType - $TenantFilter - $($TaskInfo.Name)"
+        # Build title — honor CustomSubject if set on the task row, otherwise use default format
+        $title = if (![string]::IsNullOrWhiteSpace($TaskInfo.CustomSubject)) {
+            "$($TaskInfo.CustomSubject) - $TenantFilter"
+        } else {
+            "$TaskType - $TenantFilter - $($TaskInfo.Name)"
+        }
         if ($TaskInfo.Reference) {
             $title += " - Reference: $($TaskInfo.Reference)"
         }
