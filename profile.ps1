@@ -148,7 +148,7 @@ $SwAuth.Stop()
 $Timings['Authentication'] = $SwAuth.Elapsed.TotalMilliseconds
 
 $SwVersion = [System.Diagnostics.Stopwatch]::StartNew()
-$CurrentVersion = [System.IO.File]::ReadAllText((Join-Path $env:CIPPRootPath 'Config\version_latest.txt')).Trim()
+$CurrentVersion = [System.IO.File]::ReadAllText((Join-Path $env:CIPPRootPath 'version_latest.txt')).Trim()
 $Table = Get-CippTable -tablename 'Version'
 Write-Information "Function App: $($env:WEBSITE_SITE_NAME) | API Version: $CurrentVersion | PS Version: $($PSVersionTable.PSVersion)"
 $env:CippVersion = $CurrentVersion
@@ -216,7 +216,7 @@ $Timings['Timezone'] = $SwTimezone.Elapsed.TotalMilliseconds
 # Import Extra modules if needed
 $SwExtraModules = [System.Diagnostics.Stopwatch]::StartNew()
 $ModulesPath = Join-Path $env:CIPPRootPath 'Modules'
-$NonHttpModules = @('CIPPStandards', 'CIPPAlerts', 'CIPPTests', 'CIPPDB', 'CIPPActivityTriggers', 'DNSHealth')
+$NonHttpModules = @('CIPPStandards', 'CIPPAlerts', 'CIPPTests', 'CIPPDB', 'CIPPActivityTriggers', 'DNSHealth', 'CippExtensions')
 $HttpModule = @('CIPPHTTP')
 
 $HttpDisabled = $env:AzureWebJobs_CIPPHttpTrigger_Disabled -in @('true', '1') -or [System.Environment]::GetEnvironmentVariable('AzureWebJobs.CIPPHttpTrigger.Disabled') -in @('true', '1')

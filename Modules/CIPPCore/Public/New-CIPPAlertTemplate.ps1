@@ -32,7 +32,7 @@ function New-CIPPAlertTemplate {
     }
     if ($InputObject -eq 'driftStandard') {
         $Title = "CIPP Alert - Standard Drift Detected for $($Tenant)"
-        $DataHTML = ($Data | ConvertTo-Html | Out-String).Replace('<table>', ' <table class="table-modern">')
+        $DataHTML = ($Data | ConvertTo-Html -Fragment | Out-String).Replace('<table>', ' <table class="table-modern">')
         $IntroText = "<p>You've setup your instance to receive alerts when a tenant is drifting away from your standard. This seems to have happened! We've found the following deviations. </p>$dataHTML"
         $ButtonUrl = "$CIPPURL/tenant/manage/drift?tenantFilter=$($Tenant)&templateId=$($AuditLogLink)"
         $ButtonText = 'Investigate and remediate deviations'
@@ -40,24 +40,24 @@ function New-CIPPAlertTemplate {
     }
 
     if ($InputObject -eq 'sherwebmig') {
-        $DataHTML = ($Data | ConvertTo-Html | Out-String).Replace('<table>', ' <table class="table-modern">')
+        $DataHTML = ($Data | ConvertTo-Html -Fragment | Out-String).Replace('<table>', ' <table class="table-modern">')
         $IntroText = "<p>The following licenses have not yet been found at Sherweb, and are expiring within 7 days:</p>$dataHTML"
         if ($data.SherwebMig -like '*buy*') {
             $introText = "<p>The following licenses have not yet been found at Sherweb, and are expiring within 7 days. We have started the process to automatically buy these licenses:</p>$dataHTML"
         }
     }
     if ($InputObject -eq 'sherwebmigfailcancel') {
-        $DataHTML = ($Data | ConvertTo-Html | Out-String).Replace('<table>', ' <table class="table-modern">')
+        $DataHTML = ($Data | ConvertTo-Html -Fragment | Out-String).Replace('<table>', ' <table class="table-modern">')
         $IntroText = "<p>The following licenses have not been cancelled due to an API error at the old provider:</p>$dataHTML"
     }
     if ($InputObject -eq 'sherwebmigBuyFail') {
-        $DataHTML = ($Data | ConvertTo-Html | Out-String).Replace('<table>', ' <table class="table-modern">')
+        $DataHTML = ($Data | ConvertTo-Html -Fragment | Out-String).Replace('<table>', ' <table class="table-modern">')
         $IntroText = "<p>The following licenses have not been bought as we could not find a correctly matching license. Please login and buy the license:</p>$dataHTML"
     }
     if ($InputObject -eq 'table') {
         #data can be a array of strings or a string, if it is, we need to convert it to an object so it shows up nicely, that object will have one header: message.
 
-        $DataHTML = ($Data | Select-Object * -ExcludeProperty Etag, PartitionKey, TimeStamp | ConvertTo-Html | Out-String).Replace('<table>', ' <table class="table-modern">')
+        $DataHTML = ($Data | Select-Object * -ExcludeProperty Etag, PartitionKey, TimeStamp | ConvertTo-Html -Fragment | Out-String).Replace('<table>', ' <table class="table-modern">')
         $IntroText = "<p>You've configured CIPP to send you alerts based on the logbook. The following alerts match your configured rules</p>$dataHTML"
 
         # Add alert comment if provided
@@ -86,6 +86,43 @@ function New-CIPPAlertTemplate {
         $IntroText = "<p>You're receiving this email because you've set your standards to alert when they are out of sync with your expected baseline.</p>$dataHTML"
         $ButtonUrl = "$CIPPURL/standards/list-standards"
         $ButtonText = 'Check Standards configuration'
+    }
+    if ($InputObject -eq 'customScript') {
+        # $Data is an array of custom-test alert records (one per failing test for this tenant).
+        $Alerts = @($Data)
+        $Count = $Alerts.Count
+        $Title = if ($Count -eq 1) {
+            "$($Tenant) - Custom test '$($Alerts[0].ScriptName)' returned status '$($Alerts[0].Status)'"
+        } else {
+            "$($Tenant) - $Count custom tests need attention"
+        }
+
+        $SummaryRows = foreach ($Alert in $Alerts) {
+            [PSCustomObject]@{
+                Test   = $Alert.ScriptName
+                Status = $Alert.Status
+                Risk   = if ($Alert.Risk) { $Alert.Risk } else { 'Medium' }
+            }
+        }
+        $SummaryHTML = ($SummaryRows | ConvertTo-Html -Fragment | Out-String).Replace('<table>', ' <table class="table-modern">')
+        $IntroText = "<p>You're receiving this because you enabled failure alerts for one or more custom tests. The following custom test(s) on tenant <strong>$($Tenant)</strong> need attention:</p>$SummaryHTML"
+
+        foreach ($Alert in $Alerts) {
+            $IntroText += "<h3>$($Alert.ScriptName) — $($Alert.Status)</h3>"
+            if (![string]::IsNullOrWhiteSpace($Alert.ErrorMessage)) {
+                $IntroText += "<p>The test failed to execute: $($Alert.ErrorMessage)</p>"
+            } elseif (![string]::IsNullOrWhiteSpace($Alert.ResultMarkdown)) {
+                $IntroText += "<div style='background-color: #f8f9fa; border-left: 4px solid #007bff; padding: 15px; margin: 15px 0; white-space: pre-wrap;'>$($Alert.ResultMarkdown)</div>"
+            } elseif ($Alert.FailedRows) {
+                # Normalize string rows to objects so ConvertTo-Html renders a message column
+                # instead of the string's Length property.
+                $Rows = foreach ($r in @($Alert.FailedRows)) { if ($r -is [string]) { [PSCustomObject]@{ message = $r } } else { $r } }
+                $DetailHTML = ($Rows | Select-Object * -ExcludeProperty Etag, PartitionKey, TimeStamp | ConvertTo-Html -Fragment | Out-String).Replace('<table>', ' <table class="table-modern">')
+                $IntroText += "<p>Results:</p>$DetailHTML"
+            }
+        }
+        $ButtonUrl = "$CIPPURL/tools/custom-tests"
+        $ButtonText = 'View custom test results'
     }
     if ($InputObject -eq 'auditlog') {
         $ButtonUrl = "$CIPPURL/identity/administration/users/user/bec?userId=$($data.ObjectId)&tenantFilter=$Tenant"
@@ -280,9 +317,11 @@ function New-CIPPAlertTemplate {
     }
 
     if ($Format -eq 'html') {
-        return  [pscustomobject]@{
+        $AssembledHtml = $HTMLTemplate -f $Title, $IntroText, $ButtonUrl, $ButtonText, $AfterButtonText, $AuditLogLink
+        $AssembledHtml = $AssembledHtml -replace '\r\n', '' -replace '\n', ''
+        return [pscustomobject]@{
             title       = $Title
-            htmlcontent = $HTMLTemplate -f $Title, $IntroText, $ButtonUrl, $ButtonText, $AfterButtonText, $AuditLogLink
+            htmlcontent = $AssembledHtml
         }
     } elseif ($Format -eq 'json') {
         if ($InputObject -eq 'auditlog') {
